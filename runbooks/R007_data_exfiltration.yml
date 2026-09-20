@@ -1,0 +1,59 @@
+id: R007
+title: Sensitive data read through an agent tool
+detections: [D002, D007, D014]
+severity: critical
+nist_csf: [DE.CM-09, RS.AN-03, RS.MI-02]
+atlas: [AML.T0057]
+owasp: ["LLM02:2026 Sensitive Information Disclosure"]
+triage: |
+  Separate attempt from success. D007 fires on the traversal attempt; D014 fires only when
+  bytes were returned. If D014 is silent the sandbox held and this is an injection incident,
+  not a disclosure one. If D014 fired, check D010 next: that decides whether data left the
+  system to a user, which is the notification trigger.
+collect:
+  - name: exfil_attempts
+    description: Tool calls bearing a traversal pattern, successful or not.
+    sql: |
+      SELECT ts, session_id, tool_name, arguments, outcome, error, result_bytes, depth
+      FROM tool_calls
+      WHERE arguments LIKE '%..%' OR regexp_matches(arguments, '(DECOY|\.env|credential|secret)')
+      ORDER BY ts
+  - name: bytes_returned
+    description: Only the calls that actually returned data. This sizes the disclosure.
+    sql: |
+      SELECT session_id, tool_name, arguments, result_bytes, ts
+      FROM tool_calls
+      WHERE outcome = 'ok' AND regexp_matches(arguments, '(DECOY|\.env|credential|secret)')
+      ORDER BY result_bytes DESC
+  - name: credential_material_in_context
+    description: Invocations where secret-shaped strings were inside the model input.
+    sql: |
+      SELECT b.ts, b.request_id, s.session_id,
+             regexp_extract(b.prompt, '(AIRCAP_FAKE_[A-Z_]+)') AS matched_pattern
+      FROM bedrock_invocations b
+      LEFT JOIN invocation_sessions s ON s.request_id = b.request_id
+      WHERE regexp_matches(b.prompt, 'AIRCAP_FAKE_[A-Z_]+\s*=')
+      ORDER BY b.ts
+  - name: reached_the_user
+    description: Whether the values survived into a user-facing response.
+    sql: |
+      SELECT ts, session_id, request_id, output_filtered,
+             regexp_matches(final_response, 'AIRCAP_FAKE_[A-Z_]+\s*=\s*\S+') AS unredacted_present
+      FROM agent_traces
+      WHERE regexp_matches(final_response, 'AIRCAP_FAKE_[A-Z_]+')
+      ORDER BY ts
+contain:
+  - action: disable_tool
+    reason: returned credential-bearing file contents to model context
+    targets_sql: |
+      SELECT DISTINCT tool_name AS target FROM tool_calls
+      WHERE outcome = 'ok' AND regexp_matches(arguments, '(DECOY|\.env|credential|secret)')
+  - action: enforce_output_filter
+    reason: prevent any further disclosure reaching a user while the tool is assessed
+    targets_sql: |
+      SELECT 'global' AS target
+recover: |
+  Rotate every credential the file contained before re-enabling the tool - in this lab the
+  values are fixed decoys, so rotation is a no-op, and that is the one step a real incident
+  cannot skip. Re-enable only after the path containment check is restored, then verify with
+  `make attack ID=A05`.

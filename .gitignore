@@ -1,6 +1,7 @@
 # generated telemetry & evidence — never commit real captures
 data/
-incidents/
+incidents/INC-*
+mappings/.cache/
 *.duckdb
 *.duckdb.wal
 

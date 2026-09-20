@@ -1,0 +1,58 @@
+id: R005
+title: Prompt injection directive present in model input
+detections: [D005, D006]
+severity: high
+nist_csf: [DE.AE-02, RS.AN-03, RS.MI-01]
+atlas: [AML.T0051]
+owasp: ["LLM01:2026 Prompt Injection"]
+triage: |
+  Decide one thing first: did the directive arrive in retrieved context, or in the system
+  prompt? D005 reports the region. Retrieved context means a poisoned document and the
+  corpus is the blast radius. The system prompt means the tool catalogue itself is
+  compromised, which is a supply-chain incident with a far wider scope - escalate rather
+  than quarantine.
+collect:
+  - name: injection_events
+    description: Every invocation whose input carried a concrete tool directive, with region.
+    sql: |
+      SELECT b.ts, b.request_id, s.session_id,
+             CASE WHEN regexp_matches(coalesce(b.system_prompt,''),
+                    'TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*\{')
+                  THEN 'system_prompt' ELSE 'retrieved_context' END AS region,
+             regexp_extract(coalesce(b.system_prompt,'') || ' ' || b.prompt,
+                    'TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*\{[^}]*\}') AS directive
+      FROM bedrock_invocations b
+      LEFT JOIN invocation_sessions s ON s.request_id = b.request_id
+      WHERE regexp_matches(coalesce(b.system_prompt,'') || ' ' || b.prompt,
+                    'TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*\{')
+      ORDER BY b.ts
+  - name: resulting_tool_calls
+    description: What the agent actually did once it accepted the directive.
+    sql: |
+      SELECT ts, session_id, tool_name, arguments, outcome, error, depth, result_bytes
+      FROM tool_calls ORDER BY ts
+  - name: source_documents
+    description: Documents retrieved into the affected sessions - the candidate carriers.
+    sql: |
+      SELECT DISTINCT r.session_id, r.source_uri, r.chunk_id, max(r.score) AS top_score
+      FROM retrievals r
+      WHERE r.session_id IN (SELECT session_id FROM agent_traces)
+      GROUP BY 1,2,3 ORDER BY top_score DESC
+  - name: blast_radius
+    description: Every session that retrieved the same documents, whether or not it was flagged.
+    sql: |
+      SELECT source_uri, count(DISTINCT session_id) AS sessions_exposed,
+             min(ts) AS first_exposure, max(ts) AS last_exposure
+      FROM retrievals GROUP BY 1 ORDER BY sessions_exposed DESC
+contain:
+  - action: quarantine_document
+    reason: carried an imperative tool directive into model context
+    targets_sql: |
+      SELECT DISTINCT regexp_replace(source_uri, '^file://corpus/', '') AS target
+      FROM retrievals
+      WHERE regexp_replace(source_uri, '^file://corpus/', '')
+            NOT IN ('onboarding.md','expenses.md','support-sla.md')
+recover: |
+  Restore from the quarantine directory only after the document's origin is established.
+  Re-run `make attack ID=A01` to confirm the directive no longer reaches the model. If the
+  region was system_prompt, quarantine achieves nothing - rotate the tool catalogue instead.

@@ -76,7 +76,8 @@ def write_registry(attacks: dict[str, tuple[Manifest, object]]) -> Path:
     return out
 
 
-def run_one(manifest: Manifest, module, sink: TelemetrySink, hardened: bool) -> AttackResult:
+def run_one(manifest: Manifest, module, sink: TelemetrySink, hardened: bool,
+            keep_artifacts: bool = False) -> AttackResult:
     ctx = AttackContext(sink, manifest.id, hardened=hardened)
     try:
         return module.run(ctx)
@@ -84,7 +85,8 @@ def run_one(manifest: Manifest, module, sink: TelemetrySink, hardened: bool) -> 
         logger.error("attack %s raised: %s: %s", manifest.id, type(exc).__name__, exc)
         return AttackResult(False, f"{type(exc).__name__}: {exc}")
     finally:
-        ctx.cleanup()
+        if not keep_artifacts:
+            ctx.cleanup()
 
 
 def main() -> int:
@@ -97,6 +99,11 @@ def main() -> int:
         "--hardened",
         action="store_true",
         help="run with all controls on; attacks are expected to FAIL",
+    )
+    ap.add_argument(
+        "--keep-artifacts",
+        action="store_true",
+        help="leave planted corpus documents in place so IR containment has something to act on",
     )
     ap.add_argument("-v", "--verbose", action="store_true")
     args = ap.parse_args()
@@ -128,7 +135,7 @@ def main() -> int:
     results: list[tuple[Manifest, AttackResult]] = []
     for aid in selected:
         manifest, module = attacks[aid]
-        result = run_one(manifest, module, sink, args.hardened)
+        result = run_one(manifest, module, sink, args.hardened, args.keep_artifacts)
         results.append((manifest, result))
         verdict = "SUCCEEDED" if result.succeeded else "blocked/failed"
         print(f"\n{manifest.id}  {manifest.name}")
@@ -145,6 +152,8 @@ def main() -> int:
     succeeded = sum(1 for _, r in results if r.succeeded)
     print(f"\n{'=' * 78}")
     print(f"{succeeded}/{len(results)} attacks succeeded  (telemetry run_id={sink.run_id})")
+    if args.keep_artifacts:
+        print("planted corpus documents left in place (--keep-artifacts)")
 
     if not args.hardened:
         return 0

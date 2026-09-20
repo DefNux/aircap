@@ -1,0 +1,47 @@
+id: R009
+title: Excessive agency - unbounded tool-call chain
+detections: [D009]
+severity: high
+nist_csf: [DE.AE-02, RS.MI-01]
+atlas: [AML.T0053]
+owasp: ["LLM06:2026 Excessive Agency"]
+triage: |
+  Depth alone is not malice: a genuine multi-step workflow is deep too. What separates them
+  is repetition - the same tool with the same arguments, over and over, is a loop being
+  driven, not a task being completed. Check the argument variance before escalating.
+collect:
+  - name: deep_chains
+    description: Traces exceeding the hardened depth ceiling.
+    sql: |
+      SELECT ts, session_id, request_id, max_tool_depth, tool_call_count, latency_ms
+      FROM agent_traces WHERE max_tool_depth > 3 ORDER BY max_tool_depth DESC
+  - name: chain_composition
+    description: Argument variance within deep chains. Low variance means a loop.
+    sql: |
+      SELECT session_id, tool_name, count(*) AS calls,
+             count(DISTINCT arguments) AS distinct_arguments, max(depth) AS max_depth,
+             sum(result_bytes) AS total_bytes
+      FROM tool_calls GROUP BY 1,2 HAVING max(depth) > 3 ORDER BY calls DESC
+  - name: driving_directive
+    description: The instruction that kept the chain alive.
+    sql: |
+      SELECT b.ts, s.session_id, b.prompt_chars,
+             regexp_extract(b.prompt, 'TOOL:\s*[a-z_]+\s*\{[^}]*\}') AS directive
+      FROM bedrock_invocations b
+      LEFT JOIN invocation_sessions s ON s.request_id = b.request_id
+      WHERE s.session_id IN (SELECT session_id FROM agent_traces WHERE max_tool_depth > 3)
+      ORDER BY b.ts
+contain:
+  - action: quarantine_document
+    reason: carried a repetition directive that sustained an unbounded tool chain
+    targets_sql: |
+      SELECT DISTINCT regexp_replace(r.source_uri, '^file://corpus/', '') AS target
+      FROM retrievals r
+      JOIN agent_traces t ON t.request_id = r.request_id
+      WHERE t.max_tool_depth > 3
+        AND regexp_replace(r.source_uri, '^file://corpus/', '')
+            NOT IN ('onboarding.md','expenses.md','support-sla.md')
+recover: |
+  Restore the depth ceiling to its hardened value. A ceiling is a blunt instrument: prefer
+  a per-chain budget with a distinct-argument requirement, so legitimate deep workflows are
+  unaffected while loops are cut. Verify with `make attack ID=A09`.

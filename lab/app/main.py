@@ -9,6 +9,7 @@ from pydantic import BaseModel, Field
 
 from .agent import ModelUnavailable, PromptTooLarge, handle_turn
 from .config import settings
+from .containment import default_store
 from ..telemetry.emitter import TelemetryError, TelemetrySink
 from ..telemetry.schemas import rfc3339, utc_now
 
@@ -42,6 +43,7 @@ def healthz() -> dict[str, object]:
             "runId": sink.run_id,
             "vulnFlags": settings.vuln_flags,
             "guardrailId": settings.active_guardrail,
+            "containmentActive": default_store().active_count(),
             "time": rfc3339(utc_now()),
         },
         "error": None,
@@ -50,6 +52,12 @@ def healthz() -> dict[str, object]:
 
 @app.post("/api/v1/chat")
 def chat(body: ChatRequest, request: Request) -> dict[str, object]:
+    if default_store().is_principal_revoked(settings.principal_arn):
+        logger.warning("request refused: principal revoked by containment")
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="application principal revoked by active containment",
+        )
     try:
         result = handle_turn(
             question=body.question,

@@ -15,6 +15,7 @@ from typing import Any
 
 from . import tools
 from .config import settings
+from .containment import default_store
 from .model import ModelUnavailable, generate
 from .rag import retrieve
 from ..telemetry.emitter import TelemetrySink
@@ -53,7 +54,8 @@ class PromptTooLarge(ValueError):
 
 
 def _apply_output_filter(text: str) -> tuple[str, bool, list[str]]:
-    if settings.no_output_filter:
+    # Containment overrides the toggle - that is the point of a containment action.
+    if settings.no_output_filter and not default_store().output_filter_enforced():
         return text, False, []
     hits: list[str] = []
     out = text

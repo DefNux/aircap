@@ -6,12 +6,14 @@ proves detection fires, auto-collects prompt-chain evidence, contains it, and re
 Plenty of material exists describing AI incidents. This project is about *producing the evidence* —
 the artifact an incident manager owns, not a blog post.
 
-> **Status: Week 2 of 6 complete.** Target app, AWS-faithful telemetry, analytics, a 10-attack pack
-> and a 14-detection library (SQL + Sigma + Wazuh) are working. IR engine, shadow-AI discovery and
-> cloud portability follow.
+> **Status: Week 3 of 6 complete.** Target app, AWS-faithful telemetry, analytics, a 10-attack
+> pack, a 14-detection library (SQL + Sigma + Wazuh) and an IR engine with verified containment
+> are working. Shadow-AI discovery and cloud portability follow.
 
 ```
-10/10 attacks reproduce   14/14 detections fire   0 expectation gaps
+10/10 attacks reproduce      14/14 detections fire       0 expectation gaps
+9 runbooks cover 14/14 detections     8 ATLAS techniques validated against the STIX bundle
+make ir-demo:  5 attacks succeed -> contain -> THE SAME 5 ATTACKS NOW FAIL
 5/10 attacks still succeed against the hardened baseline   <- see residual risk below
 ```
 
@@ -73,7 +75,38 @@ make detect            # run all 14 detections
 make matrix            # attack x detection coverage matrix
 make attack-hardened   # control test: all controls on
 make verify            # all of the above, in order
+
+make ir-triage         # run runbooks for fired detections, collect evidence, no containment
+make ir-respond        # run runbooks AND apply containment
+make ir-demo           # end-to-end proof: attack -> detect -> respond -> re-attack -> blocked
+make ir-status         # show active containment
+make ir-lift           # reverse all containment
+make atlas             # regenerate ATLAS coverage from the STIX bundle
 ```
+
+## The proof loop
+
+`make ir-demo` is the claim this repo actually makes:
+
+```
+STEP 1  5 attacks run                           -> 5/5 SUCCEEDED
+STEP 2  detections                              -> 9/14 fired
+STEP 3  runbooks execute, containment applied   -> 8 actions in effect
+STEP 4  quarantine directory                    -> 5 documents removed from retrieval
+STEP 5  THE SAME 5 ATTACKS RE-RUN               -> 5/5 blocked
+STEP 6  incident artifacts                       -> timelines, postmortems, evidence packs
+```
+
+Step 5 is the point: containment that cannot be re-tested is a claim, not a control.
+Containment is real state the running app honours — the retriever skips quarantined
+documents, disabled tools are refused, blocked hosts are refused — and it overrides the
+vulnerability toggles, because an incident response decision must not be undone by the
+posture the app happens to be running in. `make ir-lift` reverses everything.
+
+**On metrics, read [`engine/METRICS.md`](engine/METRICS.md) before quoting a number.**
+Time-to-detectable, triage duration and containment duration are measured. MTTD is
+*modelled* from a stated 60-second poll interval. MTTR is **not claimed**, because human
+response time was never measured.
 
 For real inference instead of the stub:
 

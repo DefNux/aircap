@@ -1,0 +1,54 @@
+id: R004
+title: Unauthorized or unguarded model invocation
+detections: [D003, D004]
+severity: critical
+nist_csf: [DE.CM-01, RS.AN-03, RS.MI-01]
+atlas: [AML.T0044]
+owasp: ["LLM03:2026 Supply Chain"]
+triage: |
+  This is ordinary credential compromise wearing an AI costume, and the response is the
+  ordinary one: identify the principal, establish what else that principal touched, revoke.
+  The AI-specific part is that there is no agent trace - the application was bypassed
+  entirely - so agent observability will show nothing and only control-plane logs exist.
+  If your only AI monitoring is at the agent layer, you are blind to this whole class.
+collect:
+  - name: unauthorized_invocations
+    description: Control-plane record of every call from a non-application principal.
+    sql: |
+      SELECT ts, principal_arn, principal_type, source_ip, user_agent, access_key_id,
+             model_id, request_id
+      FROM cloudtrail_bedrock WHERE principal_arn NOT LIKE '%aircap-app-role%' ORDER BY ts
+  - name: unguarded_invocations
+    description: Calls with no guardrail attached - the application always attaches one.
+    sql: |
+      SELECT b.ts, b.request_id, s.session_id, b.principal_arn, b.model_id,
+             b.input_tokens, b.output_tokens
+      FROM bedrock_invocations b
+      LEFT JOIN invocation_sessions s ON s.request_id = b.request_id
+      WHERE b.guardrail_id IS NULL ORDER BY b.ts
+  - name: what_was_asked
+    description: Prompt content from unauthorized calls - intent evidence.
+    sql: |
+      SELECT ts, principal_arn, prompt, completion, input_tokens
+      FROM bedrock_invocations
+      WHERE principal_arn NOT LIKE '%aircap-app-role%' ORDER BY ts
+  - name: principal_activity_summary
+    description: Blast radius per principal across the whole window.
+    sql: |
+      SELECT principal_arn, count(*) AS calls, count(DISTINCT source_ip) AS source_ips,
+             min(ts) AS first_seen, max(ts) AS last_seen,
+             string_agg(DISTINCT user_agent, ' | ') AS user_agents
+      FROM cloudtrail_bedrock GROUP BY 1 ORDER BY calls DESC
+contain:
+  - action: revoke_principal
+    reason: invoked the model outside the application identity
+    targets_sql: |
+      SELECT DISTINCT regexp_extract(principal_arn, '([^/:]+)/[^/]*$', 1) AS target
+      FROM cloudtrail_bedrock
+      WHERE principal_arn NOT LIKE '%aircap-app-role%'
+recover: |
+  In this lab revocation only blocks the application's own entry point, because there is no
+  IAM plane to revoke against - state that limitation plainly in the incident report rather
+  than implying the principal was disabled. The real control is an IAM policy denying
+  bedrock:InvokeModel without a guardrail condition key, plus an SCP; Week 5 delivers both
+  as Terraform. Rotate the access key and review what else the role could reach.

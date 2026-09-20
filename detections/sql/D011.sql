@@ -13,7 +13,7 @@ WITH approved AS (
 ), ranked AS (
     SELECT ts, session_id, chunk_id, source_uri, score,
            row_number() OVER (PARTITION BY request_id ORDER BY score DESC) AS rank,
-           regexp_extract(chunk_id, '^([a-z0-9-]+)#') AS doc
+           regexp_extract(chunk_id, '^([a-z0-9-]+)#', 1) AS doc
     FROM retrievals
 )
 SELECT ts, session_id, chunk_id, score,

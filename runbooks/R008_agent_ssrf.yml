@@ -1,0 +1,53 @@
+id: R008
+title: Agent egress to a private or metadata address
+detections: [D008]
+severity: critical
+nist_csf: [DE.CM-01, RS.MI-01]
+atlas: [AML.T0053]
+owasp: ["LLM06:2026 Excessive Agency"]
+triage: |
+  Treat a metadata-address attempt as credential compromise until proven otherwise, even
+  when the request failed. The outcome field tells you whether bytes came back; it does not
+  tell you whether an earlier attempt succeeded before logging was in place. Check the
+  response size: a successful IMDS read is small but non-zero.
+collect:
+  - name: egress_attempts
+    description: All agent-originated egress to private or link-local space.
+    sql: |
+      SELECT ts, session_id, egress_host, arguments, outcome, error, result_bytes, duration_ms
+      FROM tool_calls
+      WHERE egress_host IS NOT NULL
+        AND (egress_host = '169.254.169.254'
+             OR regexp_matches(egress_host,
+                  '^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.)'))
+      ORDER BY ts
+  - name: all_egress_baseline
+    description: Every destination the agent has ever reached, to spot what else is unusual.
+    sql: |
+      SELECT egress_host, count(*) AS attempts,
+             sum(CASE WHEN outcome='ok' THEN 1 ELSE 0 END) AS succeeded,
+             sum(result_bytes) AS total_bytes
+      FROM tool_calls WHERE egress_host IS NOT NULL
+      GROUP BY 1 ORDER BY attempts DESC
+  - name: driving_directive
+    description: The injected instruction that produced the egress, if any.
+    sql: |
+      SELECT b.ts, s.session_id,
+             regexp_extract(b.prompt, 'TOOL:\s*http_fetch\s*\{[^}]*\}') AS directive
+      FROM bedrock_invocations b
+      LEFT JOIN invocation_sessions s ON s.request_id = b.request_id
+      WHERE regexp_matches(b.prompt, 'TOOL:\s*http_fetch\s*\{')
+      ORDER BY b.ts
+contain:
+  - action: block_egress_host
+    reason: agent attempted egress to metadata or private address space
+    targets_sql: |
+      SELECT DISTINCT egress_host AS target FROM tool_calls
+      WHERE egress_host IS NOT NULL
+        AND (egress_host = '169.254.169.254'
+             OR regexp_matches(egress_host,
+                  '^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.)'))
+recover: |
+  Restore the fetch allowlist and the private-range resolution check, then verify with
+  `make attack ID=A06`. In real AWS, prefer IMDSv2 with a hop limit of 1 and an egress
+  proxy - a host denylist maintained by incident response is a stopgap, not a control.

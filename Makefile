@@ -6,7 +6,8 @@ DATA    := ./data
 OLLAMA  := $(HOME)/.local/bin/ollama
 
 .PHONY: help venv serve smoke query views clean-data ollama-serve ollama-pull posture test \
-	attack attack-hardened detect matrix registry verify
+	attack attack-hardened detect matrix registry verify \
+	ir-triage ir-respond ir-status ir-lift ir-demo atlas
 
 help: ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -55,12 +56,32 @@ verify: clean-data ## full pipeline: attacks -> detections -> matrix -> control 
 	@echo
 	@$(PY) attacks/runner.py --all --hardened | tail -12
 
+ir-triage: ## run runbooks for fired detections, collect evidence, no containment
+	$(PY) engine/ir.py --triage
+
+ir-respond: ## run runbooks AND apply containment
+	$(PY) engine/ir.py --respond
+
+ir-status: ## show active containment state
+	@$(PY) engine/ir.py --status
+
+ir-lift: ## reverse all containment and restore quarantined documents
+	$(PY) engine/ir.py --lift
+
+ir-demo: ## end-to-end proof: attack -> detect -> respond -> re-attack -> blocked
+	./scripts/ir_demo.sh
+
+atlas: ## regenerate the ATLAS coverage matrix from the STIX bundle
+	$(PY) mappings/atlas_coverage.py
+
 ollama-pull: ## pull the 3B quantized model (4GB VRAM budget)
 	$(OLLAMA) pull llama3.2:3b-instruct-q4_K_M
 
 ollama-serve: ## start the local model plane
 	$(OLLAMA) serve
 
-clean-data: ## delete generated telemetry (never commits, but keeps runs clean)
-	rm -rf $(DATA)/bedrock-logs $(DATA)/cloudtrail $(DATA)/agent-traces
-	@echo "telemetry cleared"
+clean-data: ## delete generated telemetry and incidents; lift containment first
+	-$(PY) engine/ir.py --lift >/dev/null 2>&1
+	rm -rf $(DATA)/bedrock-logs $(DATA)/cloudtrail $(DATA)/agent-traces $(DATA)/quarantine
+	rm -rf incidents/INC-*
+	@echo "telemetry, incidents and containment cleared"

@@ -1,0 +1,63 @@
+id: R011
+title: Retrieval ranking anomaly - unapproved source outranked the corpus
+detections: [D011]
+severity: high
+nist_csf: [DE.CM-09, RS.AN-03, RS.MI-02]
+atlas: [AML.T0070]
+owasp: ["LLM08:2026 Vector and Embedding Weaknesses"]
+triage: |
+  Poisoning needs no injection and no tool call - the agent simply answers from attacker
+  text - so there may be no other signal at all. The question is not "was a tool abused"
+  but "how many users were given an answer derived from this document". Answer that before
+  removing the document, because removal destroys the ranking evidence.
+collect:
+  - name: unapproved_top_ranked
+    description: Sessions where a document outside the approved corpus ranked first.
+    sql: |
+      WITH ranked AS (
+        SELECT ts, session_id, chunk_id, source_uri, score,
+               row_number() OVER (PARTITION BY request_id ORDER BY score DESC) AS rank,
+               regexp_extract(chunk_id, '^([a-z0-9-]+)#', 1) AS doc
+        FROM retrievals)
+      SELECT ts, session_id, chunk_id, score, doc FROM ranked
+      WHERE rank = 1 AND doc NOT IN ('onboarding','expenses','support-sla','kb-runbook')
+      ORDER BY ts
+  - name: displaced_documents
+    description: What the poisoned chunk outranked - the answer the user should have had.
+    sql: |
+      WITH ranked AS (
+        SELECT request_id, session_id, chunk_id, score,
+               row_number() OVER (PARTITION BY request_id ORDER BY score DESC) AS rank,
+               regexp_extract(chunk_id, '^([a-z0-9-]+)#', 1) AS doc
+        FROM retrievals)
+      SELECT a.session_id, a.chunk_id AS winner, a.score AS winner_score,
+             b.chunk_id AS displaced, b.score AS displaced_score
+      FROM ranked a JOIN ranked b USING (request_id)
+      WHERE a.rank = 1 AND b.rank = 2
+        AND a.doc NOT IN ('onboarding','expenses','support-sla','kb-runbook')
+  - name: answers_given
+    description: The responses users actually received from poisoned context.
+    sql: |
+      SELECT t.ts, t.session_id, t.user_prompt, t.final_response
+      FROM agent_traces t
+      WHERE EXISTS (
+        SELECT 1 FROM retrievals r WHERE r.request_id = t.request_id
+          AND regexp_extract(r.chunk_id, '^([a-z0-9-]+)#', 1)
+              NOT IN ('onboarding','expenses','support-sla','kb-runbook'))
+      ORDER BY t.ts
+contain:
+  - action: quarantine_document
+    reason: unapproved document outranked the authoritative corpus
+    targets_sql: |
+      WITH ranked AS (
+        SELECT request_id, source_uri, score,
+               row_number() OVER (PARTITION BY request_id ORDER BY score DESC) AS rank,
+               regexp_extract(chunk_id, '^([a-z0-9-]+)#', 1) AS doc
+        FROM retrievals)
+      SELECT DISTINCT regexp_replace(source_uri, '^file://corpus/', '') AS target
+      FROM ranked
+      WHERE rank = 1 AND doc NOT IN ('onboarding','expenses','support-sla','kb-runbook')
+recover: |
+  Re-ingest the corpus from a trusted source and record a document baseline, without which
+  D011 is pure noise. Notify every session listed in answers_given: they were given
+  attacker-authored guidance. Verify with `make attack ID=A02`.

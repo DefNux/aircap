@@ -1,0 +1,41 @@
+id: R001
+title: Unbounded consumption - oversized prompts and sustained invocation volume
+detections: [D001, D012]
+severity: medium
+nist_csf: [DE.AE-02, RS.MI-01]
+atlas: [AML.T0034]
+owasp: ["LLM10:2026 Unbounded Consumption"]
+triage: |
+  Distinguish a cost attack from a badly written client. D001 rejections with prompts
+  multiples of the ceiling are probing. D012 volume with every prompt sitting just under
+  the ceiling is deliberate - that shape does not occur by accident. Check whether one
+  principal or many: a single principal is abuse, many is a integration regression.
+collect:
+  - name: rejected_attempts
+    description: Requests refused before reaching the model.
+    sql: |
+      SELECT ts, session_id, principal_arn, rejection_reason, length(user_prompt) AS captured_chars
+      FROM agent_traces WHERE rejected ORDER BY ts
+  - name: volume_by_session
+    description: Invocation count and token totals per session, with the elapsed window.
+    sql: |
+      SELECT t.session_id, count(*) AS invocations, sum(b.input_tokens) AS input_tokens,
+             sum(b.output_tokens) AS output_tokens,
+             min(b.ts) AS first_seen, max(b.ts) AS last_seen,
+             round(epoch(max(b.ts) - min(b.ts)), 2) AS window_seconds
+      FROM bedrock_invocations b
+      JOIN agent_traces t ON t.request_id = regexp_replace(b.request_id, '-d[0-9]+$', '')
+      GROUP BY 1 HAVING count(*) >= 5 ORDER BY invocations DESC
+  - name: prompt_size_distribution
+    description: Are prompts clustered just below the ceiling? That is the tell.
+    sql: |
+      SELECT width_bucket(prompt_chars, 0, 8000, 8) AS size_bucket,
+             count(*) AS invocations, min(prompt_chars) AS min_chars, max(prompt_chars) AS max_chars
+      FROM bedrock_invocations GROUP BY 1 ORDER BY 1
+contain: []
+recover: |
+  There is no containment action here, and that is the finding: the lab has a per-prompt
+  size ceiling but no per-principal token budget, so nothing can be turned off to stop a
+  sub-ceiling flood. The fix is a control that does not exist yet - a rate and token budget
+  per principal, enforced before invocation. Until then this runbook is detect-and-escalate
+  only, and the incident report should say so rather than implying containment occurred.

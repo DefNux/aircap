@@ -10,6 +10,7 @@ import logging
 import re
 from pathlib import Path
 
+from .containment import default_store
 from ..telemetry.schemas import RetrievedChunk
 
 logger = logging.getLogger("aircap.rag")
@@ -47,8 +48,14 @@ def retrieve(query: str, top_k: int = 3) -> list[tuple[RetrievedChunk, str]]:
         raise RetrieverError(f"corpus directory missing: {CORPUS_DIR}")
 
     q = _tokens(query)
+    store = default_store()
     scored: list[tuple[float, RetrievedChunk, str]] = []
+    skipped = 0
     for path in sorted(CORPUS_DIR.glob("*.md")):
+        if store.is_document_quarantined(path.name):
+            skipped += 1
+            logger.warning("skipping quarantined document %s", path.name)
+            continue
         try:
             content = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
@@ -73,5 +80,8 @@ def retrieve(query: str, top_k: int = 3) -> list[tuple[RetrievedChunk, str]]:
 
     scored.sort(key=lambda row: row[0], reverse=True)
     hits = [(meta, text) for _, meta, text in scored[:top_k]]
-    logger.info("retrieved %d chunk(s) for query of %d chars", len(hits), len(query))
+    logger.info(
+        "retrieved %d chunk(s) for query of %d chars (%d quarantined document(s) skipped)",
+        len(hits), len(query), skipped,
+    )
     return hits

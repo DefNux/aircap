@@ -1,0 +1,49 @@
+id: R010
+title: Confirmed disclosure - credential material in a user-facing response
+detections: [D010]
+severity: critical
+nist_csf: [DE.CM-09, RS.AN-03, RS.CO-02, RC.RP-01]
+atlas: [AML.T0057]
+owasp: ["LLM02:2026 Sensitive Information Disclosure"]
+triage: |
+  This is the detection that changes the incident's legal character: data left the system
+  to a recipient. Do not spend time on root cause first. Establish (1) what values left,
+  (2) to which sessions, (3) over what window - those three answers drive the notification
+  decision and its clock. Root cause can wait an hour; a notification deadline cannot.
+collect:
+  - name: disclosures
+    description: Responses containing unredacted secret-shaped values.
+    sql: |
+      SELECT ts, session_id, request_id, principal_arn, output_filtered,
+             regexp_extract(final_response, '(AIRCAP_FAKE_[A-Z_]+\s*=\s*\S+)') AS disclosed_value
+      FROM agent_traces
+      WHERE regexp_matches(final_response, 'AIRCAP_FAKE_[A-Z_]+\s*=\s*\S+')
+        AND NOT output_filtered
+      ORDER BY ts
+  - name: disclosure_window
+    description: First and last disclosure, and how many sessions are affected.
+    sql: |
+      SELECT min(ts) AS first_disclosure, max(ts) AS last_disclosure,
+             count(*) AS response_count, count(DISTINCT session_id) AS sessions_affected
+      FROM agent_traces
+      WHERE regexp_matches(final_response, 'AIRCAP_FAKE_[A-Z_]+\s*=\s*\S+') AND NOT output_filtered
+  - name: filter_posture_at_time
+    description: Whether redaction was disabled by configuration when this happened.
+    sql: |
+      SELECT ts, session_id, vuln_flags, output_filtered
+      FROM agent_traces
+      WHERE regexp_matches(final_response, 'AIRCAP_FAKE_[A-Z_]+') ORDER BY ts
+contain:
+  - action: enforce_output_filter
+    reason: confirmed unredacted disclosure in a user-facing response
+    targets_sql: |
+      SELECT 'global' AS target
+  - action: disable_tool
+    reason: source of the disclosed material
+    targets_sql: |
+      SELECT DISTINCT tool_name AS target FROM tool_calls
+      WHERE outcome = 'ok' AND regexp_matches(arguments, '(DECOY|\.env|credential|secret)')
+recover: |
+  Rotate the disclosed credentials, then lift the filter enforcement only after the
+  underlying read path is fixed - the filter is a mitigation, not the fix. Verify with
+  `make attack ID=A07`, which should now be contained rather than merely redacted.

@@ -1,0 +1,49 @@
+id: R013
+title: Agent read a restricted record on behalf of an unscoped caller
+detections: [D013]
+severity: high
+nist_csf: [DE.CM-09, RS.AN-03]
+atlas: [AML.T0053]
+owasp: ["LLM06:2026 Excessive Agency"]
+triage: |
+  The audit trail will show the application principal, not the person who asked - so the
+  logs cannot answer "who accessed this record". That is the incident. Do not spend effort
+  trying to attribute it from telemetry that structurally cannot carry the answer; record
+  the gap and treat every session in the window as potentially implicated.
+collect:
+  - name: restricted_reads
+    description: Successful reads of the restricted record.
+    sql: |
+      SELECT ts, session_id, tool_name, arguments, outcome, result_bytes, depth
+      FROM tool_calls
+      WHERE tool_name = 'lookup_ticket' AND outcome = 'ok' AND arguments LIKE '%TKT-1003%'
+      ORDER BY ts
+  - name: attribution_available
+    description: What identity the telemetry actually recorded. Expect one value throughout.
+    sql: |
+      SELECT DISTINCT principal_arn, count(*) AS traces
+      FROM agent_traces GROUP BY 1
+  - name: full_ticket_access_history
+    description: Every ticket the agent read, to size the authorization gap.
+    sql: |
+      SELECT regexp_extract(arguments, '(TKT-[0-9]{4})', 1) AS ticket_id,
+             count(*) AS reads, count(DISTINCT session_id) AS sessions, min(ts) AS first_read
+      FROM tool_calls
+      WHERE tool_name = 'lookup_ticket' AND outcome = 'ok'
+      GROUP BY 1 ORDER BY reads DESC
+  - name: response_content
+    description: Whether record contents reached the user, not just the model.
+    sql: |
+      SELECT ts, session_id, user_prompt, final_response FROM agent_traces
+      WHERE lower(final_response) LIKE '%phishing%' OR lower(final_response) LIKE '%soc%'
+      ORDER BY ts
+contain:
+  - action: disable_tool
+    reason: no per-user authorization exists between the agent and this tool
+    targets_sql: |
+      SELECT 'lookup_ticket' AS target
+recover: |
+  Do not re-enable the tool on the strength of tightened argument validation - validation is
+  not authorization, and that confusion is what caused this. Re-enable only once the calling
+  user's identity is propagated into the tool call and enforced there. Verify with
+  `make attack ID=A04`.

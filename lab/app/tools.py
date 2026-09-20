@@ -22,6 +22,7 @@ from urllib.parse import urlparse
 import httpx
 
 from .config import settings
+from .containment import default_store
 from ..telemetry.schemas import ToolCall
 
 logger = logging.getLogger("aircap.tools")
@@ -82,6 +83,10 @@ def http_fetch(url: str) -> str:
     if parsed.scheme not in {"http", "https"}:
         raise ToolDenied(f"scheme not permitted: {parsed.scheme!r}")
     host = parsed.hostname or ""
+    # Containment outranks every vulnerability toggle: an incident response decision
+    # must not be undone by the posture the app happens to be running in.
+    if default_store().is_host_blocked(host):
+        raise ToolDenied(f"egress host blocked by active containment: {host}")
     if not settings.allow_unscoped_fetch:
         if host not in FETCH_ALLOWLIST:
             raise ToolDenied(f"host not in allowlist: {host}")
@@ -121,7 +126,8 @@ DESCRIPTIONS: dict[str, str] = {
 def invoke(name: str, arguments: dict[str, Any], depth: int) -> tuple[ToolCall, str]:
     """Execute a tool, returning its trace record and output. Never raises."""
     started = time.perf_counter()
-    allowed = settings.no_tool_allowlist or name in TOOL_ALLOWLIST
+    contained = default_store().is_tool_disabled(name)
+    allowed = (settings.no_tool_allowlist or name in TOOL_ALLOWLIST) and not contained
     egress_host: str | None = None
     if name == "http_fetch":
         egress_host = urlparse(str(arguments.get("url", ""))).hostname
@@ -141,6 +147,10 @@ def invoke(name: str, arguments: dict[str, Any], depth: int) -> tuple[ToolCall, 
             ),
             result,
         )
+
+    if contained:
+        logger.warning("tool disabled by active containment: %s", name)
+        return trace("denied", "", f"tool disabled by active containment: {name}")
 
     if not allowed:
         logger.warning("tool not allowlisted: %s", name)

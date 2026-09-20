@@ -94,6 +94,15 @@ This is what the `!` cells are for, and the fix was to the prediction, not the d
   planting *is* a corpus-integrity violation. Correct, but it makes D011 a
   delivery-mechanism detection rather than a payload detection. It also depends entirely
   on a maintained corpus baseline; without one it is pure noise.
+
+  > **Corrected in Week 3.** The hit count was inflated by a real bug, not by the
+  > behaviour described above: `regexp_extract(chunk_id, '^([a-z0-9-]+)#')` with two
+  > arguments returns the *whole match* including the `#`, so every document — including
+  > the legitimate `onboarding.md` and `expenses.md` — failed the approved-baseline
+  > comparison. D011 was firing on everything. Fixed by using the 3-argument form to
+  > select capture group 1; hits fell from 20 to 7, now only genuinely planted documents.
+  > The original note rationalised a false-positive bug as a design property, which is
+  > exactly the failure mode a detection engineer has to guard against.
 - **D012's threshold (10 invocations / 5 min) is a lab value.** A09's legitimate 10-deep
   chain trips it. Tune to an observed baseline before claiming a real detection rate.
 - **Wazuh cannot express intra-array conjunctions.** `data.toolCalls.name` matching is
