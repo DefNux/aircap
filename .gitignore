@@ -1,0 +1,35 @@
+# generated telemetry & evidence — never commit real captures
+data/
+incidents/
+*.duckdb
+*.duckdb.wal
+
+# secrets
+*.key
+*.pem
+*.backup
+.env
+.env.*
+!.env.example
+credentials
+*_key
+sk-*
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfplan
+.terraform.lock.hcl
+
+# os / editor
+.DS_Store
+*.swp
