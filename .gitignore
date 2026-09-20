@@ -5,6 +5,14 @@
 *.tgz
 *.zip
 
+# attack-planted corpus documents are generated artifacts, not source. Allowlist the
+# three baseline documents explicitly - a bare wildcard here once let seven planted
+# documents into a commit.
+lab/app/corpus/*.md
+!lab/app/corpus/onboarding.md
+!lab/app/corpus/expenses.md
+!lab/app/corpus/support-sla.md
+
 # generated telemetry & evidence — never commit real captures
 data/
 incidents/INC-*
