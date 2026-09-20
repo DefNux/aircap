@@ -1,0 +1,33 @@
+title: Path traversal in a tool argument
+id: 9d90c45d-d1d8-5c1f-b6fd-3933cf505c8a
+status: experimental
+description: |
+  A relative-path escape appeared in a tool argument. Fires whether or not the sandbox held, because the attempt is the signal.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0057
+  - detections/sql/D007.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0057
+  - owasp.llm02
+  - nist.csf.de_cm_09
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    toolCalls.name: 'read_file'
+  traversal:
+    toolCalls.arguments|contains:
+      - '../'
+      - '..\\'
+      - '%2e%2e'
+  condition: selection and traversal
+fields:
+  - sessionId
+  - toolCalls.arguments
+  - toolCalls.outcome
+falsepositives:
+  - Essentially none. A well-formed client never emits a relative escape.
+level: high

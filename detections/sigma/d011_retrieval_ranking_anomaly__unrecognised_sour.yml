@@ -1,0 +1,35 @@
+title: Retrieval ranking anomaly - unrecognised source outranked the corpus
+id: 4e3094a3-31f0-5554-9eac-fb9ee1104a3e
+status: experimental
+description: |
+  The top-ranked chunk came from a document outside the approved corpus baseline. Poisoning needs no injection and no tool call - the agent simply answers from attacker text - so ranking provenance is the only agent-plane signal available.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0070
+  - detections/sql/D011.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0070
+  - owasp.llm08
+  - nist.csf.de_cm_09
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    retrieved.chunkId|exists: true
+  approved:
+    retrieved.chunkId|startswith:
+      - 'onboarding#'
+      - 'expenses#'
+      - 'support-sla#'
+      - 'kb-runbook#'
+  condition: selection and not approved
+fields:
+  - sessionId
+  - retrieved.chunkId
+  - retrieved.score
+falsepositives:
+  - Newly published legitimate documents. This rule requires a maintained corpus
+    baseline; without one it is pure noise, which is the honest caveat.
+level: high

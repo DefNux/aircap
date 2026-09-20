@@ -1,0 +1,33 @@
+title: Model invoked by an unauthorized principal
+id: afe1592f-3188-5417-9208-d9741f38d49f
+status: experimental
+description: |
+  Only the application role should call the model. Anything else is stolen credentials, an over-broad role, or a developer bypassing the app - and it produces no agent-plane trace, so control-plane telemetry is the only witness.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0044
+  - detections/sql/D004.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0044
+  - owasp.llm03
+  - nist.csf.de_cm_01
+logsource:
+  product: aws
+  service: cloudtrail
+detection:
+  selection:
+    eventSource: 'bedrock.amazonaws.com'
+    eventName|startswith: 'InvokeModel'
+  known_principal:
+    userIdentity.arn|contains: 'aircap-app-role'
+  condition: selection and not known_principal
+fields:
+  - userIdentity.arn
+  - sourceIPAddress
+  - userAgent
+  - requestParameters.modelId
+falsepositives:
+  - Break-glass roles and approved data-science sandboxes. Allowlist by role ARN, never
+    by user agent - a user agent is attacker-controlled.
+level: critical

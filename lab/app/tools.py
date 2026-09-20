@@ -60,7 +60,10 @@ def _is_private(host: str) -> bool:
 
 def read_file(path: str) -> str:
     if settings.no_tool_allowlist:
-        target = Path(path).expanduser()
+        # VULNERABLE: joined to the sandbox root but the containment check is skipped,
+        # which is the shape the real bug takes. Resolving against the process CWD
+        # instead would make traversal fail for the wrong reason.
+        target = (SANDBOX_ROOT / path.lstrip("/")).resolve()
     else:
         candidate = (SANDBOX_ROOT / path.lstrip("/")).resolve()
         if not str(candidate).startswith(str(SANDBOX_ROOT) + "/"):

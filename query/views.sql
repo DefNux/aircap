@@ -59,6 +59,8 @@ SELECT
     vulnFlags                                    AS vuln_flags,
     outputFiltered                               AS output_filtered,
     latencyMs                                    AS latency_ms,
+    coalesce(rejected, false)                    AS rejected,
+    rejectionReason                              AS rejection_reason,
     len(toolCalls)                               AS tool_call_count,
     len(retrieved)                               AS retrieved_count
 FROM read_json_auto(
@@ -96,3 +98,17 @@ SELECT
     r.score,
     r.chars
 FROM agent_traces t, UNNEST(t.retrieved) AS u(r);
+
+-- Correlates model- and control-plane records back to the agent session that caused
+-- them. The application stamps invocation request ids as "<trace-uuid>-d<depth>", so
+-- stripping the suffix recovers the agent trace. Calls made directly against the model
+-- API have no agent trace and therefore no session - which is itself the signal that
+-- something bypassed the application.
+CREATE OR REPLACE VIEW invocation_sessions AS
+SELECT
+    b.request_id,
+    regexp_replace(b.request_id, '-d[0-9]+$', '') AS trace_id,
+    t.session_id
+FROM bedrock_invocations b
+LEFT JOIN agent_traces t
+       ON t.request_id = regexp_replace(b.request_id, '-d[0-9]+$', '');

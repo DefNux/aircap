@@ -1,15 +1,31 @@
-"""Lab configuration. Every vulnerability is an explicit, logged opt-in."""
+"""Lab configuration. Every vulnerability is an explicit, logged opt-in.
+
+Posture is resolved per-request through a ContextVar, not at import time, so an
+attack harness can run many postures inside one process. Application code keeps
+using the module-level ``settings`` object; it is a proxy that resolves against
+whatever posture is active on the current context.
+"""
 
 from __future__ import annotations
 
 import logging
-
-from typing import Literal
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 logger = logging.getLogger("aircap.config")
+
+VULN_FLAGS = (
+    "trust_retrieved_content",
+    "no_tool_allowlist",
+    "allow_unscoped_fetch",
+    "no_output_filter",
+    "drop_guardrail",
+)
 
 
 class Settings(BaseSettings):
@@ -43,13 +59,7 @@ class Settings(BaseSettings):
 
     @property
     def vuln_flags(self) -> dict[str, bool]:
-        return {
-            "trust_retrieved_content": self.trust_retrieved_content,
-            "no_tool_allowlist": self.no_tool_allowlist,
-            "allow_unscoped_fetch": self.allow_unscoped_fetch,
-            "no_output_filter": self.no_output_filter,
-            "drop_guardrail": self.drop_guardrail,
-        }
+        return {name: getattr(self, name) for name in VULN_FLAGS}
 
     @property
     def active_guardrail(self) -> str | None:
@@ -63,4 +73,50 @@ class Settings(BaseSettings):
             logger.info("lab posture: hardened baseline (no vuln flags set)")
 
 
-settings = Settings()
+_BASE = Settings()
+_ACTIVE: ContextVar[Settings | None] = ContextVar("aircap_posture", default=None)
+
+
+def current() -> Settings:
+    """The Settings governing the current context."""
+    return _ACTIVE.get() or _BASE
+
+
+def base() -> Settings:
+    """The process-wide baseline, ignoring any active override."""
+    return _BASE
+
+
+@contextmanager
+def posture(**overrides: Any) -> Iterator[Settings]:
+    """Temporarily apply configuration overrides to the current context.
+
+    Unknown keys are rejected rather than silently ignored - a typo in an attack
+    manifest must fail loudly, otherwise an attack appears to run hardened and the
+    detection matrix quietly fills with false negatives.
+    """
+    unknown = set(overrides) - set(Settings.model_fields)
+    if unknown:
+        raise ValueError(f"unknown setting(s): {', '.join(sorted(unknown))}")
+
+    merged = _BASE.model_copy(update=overrides)
+    token = _ACTIVE.set(merged)
+    enabled = [k for k, v in merged.vuln_flags.items() if v]
+    logger.info("posture entered: %s", ", ".join(enabled) if enabled else "hardened")
+    try:
+        yield merged
+    finally:
+        _ACTIVE.reset(token)
+
+
+class _SettingsProxy:
+    """Attribute access resolves against the active posture at call time."""
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(current(), name)
+
+    def __repr__(self) -> str:
+        return f"<SettingsProxy active={current().vuln_flags}>"
+
+
+settings = _SettingsProxy()

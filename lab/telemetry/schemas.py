@@ -157,3 +157,8 @@ class AgentInvocationLog(BaseModel):
     vulnFlags: dict[str, bool] = Field(default_factory=dict)
     outputFiltered: bool = False
     latencyMs: int = Field(default=0, ge=0)
+    # A request refused before the model was reached. Without this the attempt leaves
+    # no trace anywhere: the exception fires ahead of every emit, and CloudTrail never
+    # sees a call that was never made.
+    rejected: bool = False
+    rejectionReason: str | None = None

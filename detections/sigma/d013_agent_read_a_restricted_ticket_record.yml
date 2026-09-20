@@ -1,0 +1,31 @@
+title: Agent read a restricted ticket record
+id: 0f9d4fa0-3bc6-55b5-b592-2ac9dd60ce6d
+status: experimental
+description: |
+  TKT-1003 is the SOC's own incident record. The agent holds one application identity with no per-user authorization, so any caller who can reach the agent can reach this record through it. The audit trail shows only the application principal.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0053
+  - detections/sql/D013.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0053
+  - owasp.llm06
+  - nist.csf.de_cm_09
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    toolCalls.name: 'lookup_ticket'
+    toolCalls.outcome: 'ok'
+  restricted:
+    toolCalls.arguments|contains: 'TKT-1003'
+  condition: selection and restricted
+fields:
+  - sessionId
+  - toolCalls.arguments
+falsepositives:
+  - A SOC analyst legitimately using the assistant on their own record. Correlate the
+    requesting user, which is precisely the field the application fails to propagate.
+level: high

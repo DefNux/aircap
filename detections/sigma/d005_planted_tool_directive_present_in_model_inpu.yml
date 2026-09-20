@@ -1,0 +1,30 @@
+title: Planted tool directive present in model input
+id: f0bf0d57-fcc7-5ac0-a2ae-b82ec155f25a
+status: experimental
+description: |
+  A concrete tool-invocation directive naming a real tool appears in the model's input. The system prompt's format example uses a <name> placeholder, so it cannot match. Reports which region carried it: retrieved context, or the system prompt itself (which means the tool catalogue is compromised, not the corpus).
+references:
+  - https://atlas.mitre.org/techniques/AML.T0051
+  - detections/sql/D005.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0051
+  - owasp.llm01
+  - nist.csf.de_ae_02
+logsource:
+  product: aircap
+  service: bedrock-invocation
+detection:
+  directive_in_context:
+    input.inputBodyJson.prompt|re: 'TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*\{'
+  directive_in_system:
+    input.inputBodyJson.system|re: 'TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*\{'
+  condition: directive_in_context or directive_in_system
+fields:
+  - requestId
+  - input.inputBodyJson.system
+falsepositives:
+  - Users legitimately discussing tool syntax with the assistant. The named-tool pattern
+    keeps the system prompt's own <name> placeholder from matching.
+level: high

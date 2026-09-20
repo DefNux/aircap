@@ -1,0 +1,131 @@
+<!--
+  AIRCAP local rules. Ids 100200-100299 (Wazuh local range).
+  Field paths follow Wazuh's JSON decoder: every key becomes data.<path>.
+  Nested arrays (toolCalls, retrieved) are flattened by the decoder, so a match on
+  data.toolCalls.name is true if ANY element matches - correct for these rules, and a
+  limitation worth knowing: Wazuh alone cannot express "denied AND read_file in the same
+  array element". Where that matters the SQL detection is authoritative.
+-->
+<group name="aircap,ai_security,">
+
+  <!-- Parent rule: anything from an AIRCAP stream. -->
+  <rule id="100200" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="schemaType">\.+</field>
+    <description>AIRCAP telemetry event</description>
+  </rule>
+
+  <rule id="100201" level="6">
+    <if_sid>100200</if_sid>
+    <field name="rejected">^true$</field>
+    <description>AIRCAP D001: oversized prompt rejected by the size ceiling - session $(sessionId)</description>
+    <group>aircap_d001,unbounded_consumption,</group>
+  </rule>
+
+  <rule id="100202" level="12">
+    <if_sid>100200</if_sid>
+    <field name="input.inputBodyJson.prompt">AIRCAP_FAKE_\w+\s*=|(AKIA|ASIA)\w{16}</field>
+    <description>AIRCAP D002: credential material present in a model prompt - request $(requestId)</description>
+    <group>aircap_d002,sensitive_disclosure,</group>
+  </rule>
+
+  <rule id="100203" level="10">
+    <if_sid>100200</if_sid>
+    <field name="schemaType">^ModelInvocationLog$</field>
+    <field name="guardrailId">^null$|^$</field>
+    <description>AIRCAP D003: model invoked without a guardrail attached - $(identity.arn)</description>
+    <group>aircap_d003,guardrail_bypass,</group>
+  </rule>
+
+  <rule id="100204" level="14">
+    <if_sid>100200</if_sid>
+    <field name="eventSource">^bedrock.amazonaws.com$</field>
+    <field name="userIdentity.arn">!aircap-app-role</field>
+    <description>AIRCAP D004: model invoked by an unauthorized principal $(userIdentity.arn) from $(sourceIPAddress)</description>
+    <group>aircap_d004,unauthorized_access,</group>
+  </rule>
+
+  <rule id="100205" level="12">
+    <if_sid>100200</if_sid>
+    <field name="input.inputBodyJson.prompt">TOOL:\s*(read_file|http_fetch|lookup_ticket)\s*{</field>
+    <description>AIRCAP D005: planted tool directive present in model input - request $(requestId)</description>
+    <group>aircap_d005,prompt_injection,</group>
+  </rule>
+
+  <rule id="100206" level="6">
+    <if_sid>100200</if_sid>
+    <field name="toolCalls.outcome">^denied$</field>
+    <description>AIRCAP D006: tool invocation denied by a control - session $(sessionId)</description>
+    <group>aircap_d006,excessive_agency,</group>
+  </rule>
+
+  <rule id="100207" level="10">
+    <if_sid>100200</if_sid>
+    <field name="toolCalls.arguments">\.\./|%2e%2e</field>
+    <description>AIRCAP D007: path traversal in a tool argument - session $(sessionId)</description>
+    <group>aircap_d007,path_traversal,</group>
+  </rule>
+
+  <rule id="100208" level="14">
+    <if_sid>100200</if_sid>
+    <field name="toolCalls.egressHost">^169\.254\.169\.254$|^metadata\.google\.internal$|^10\.|^127\.|^192\.168\.|^172\.(1[6-9]|2[0-9]|3[01])\.</field>
+    <description>AIRCAP D008: agent egress to private or metadata address $(toolCalls.egressHost)</description>
+    <group>aircap_d008,ssrf,imds,</group>
+  </rule>
+
+  <rule id="100209" level="10">
+    <if_sid>100200</if_sid>
+    <field name="maxToolDepth">^([4-9]|[1-9][0-9]+)$</field>
+    <description>AIRCAP D009: excessive tool-call chain depth $(maxToolDepth) - session $(sessionId)</description>
+    <group>aircap_d009,excessive_agency,</group>
+  </rule>
+
+  <rule id="100210" level="15">
+    <if_sid>100200</if_sid>
+    <field name="finalResponse">AIRCAP_FAKE_\w+\s*=\s*\S+</field>
+    <field name="outputFiltered">^false$</field>
+    <description>AIRCAP D010: CONFIRMED LEAK - credential material in user-facing response, session $(sessionId)</description>
+    <group>aircap_d010,data_leak,confirmed,</group>
+  </rule>
+
+  <rule id="100211" level="10">
+    <if_sid>100200</if_sid>
+    <field name="retrieved.chunkId">\.+</field>
+    <field name="retrieved.chunkId">!^onboarding#|!^expenses#|!^support-sla#|!^kb-runbook#</field>
+    <description>AIRCAP D011: retrieval ranking anomaly - unapproved source $(retrieved.chunkId)</description>
+    <group>aircap_d011,rag_poisoning,</group>
+  </rule>
+
+  <!-- D012 is inherently an aggregation: a single invocation is not an alert. -->
+  <rule id="100212" level="0">
+    <if_sid>100200</if_sid>
+    <field name="operation">^InvokeModel$</field>
+    <description>AIRCAP: model invocation (D012 aggregation base)</description>
+    <group>aircap_d012_base,</group>
+  </rule>
+
+  <rule id="100213" level="7" frequency="10" timeframe="300">
+    <if_matched_sid>100212</if_matched_sid>
+    <same_field>identity.arn</same_field>
+    <description>AIRCAP D012: sustained model invocation volume - 10+ invocations in 5m from $(identity.arn)</description>
+    <group>aircap_d012,unbounded_consumption,</group>
+  </rule>
+
+  <rule id="100214" level="10">
+    <if_sid>100200</if_sid>
+    <field name="toolCalls.arguments">TKT-1003</field>
+    <field name="toolCalls.outcome">^ok$</field>
+    <description>AIRCAP D013: agent read a restricted ticket record - session $(sessionId)</description>
+    <group>aircap_d013,authorization_bypass,</group>
+  </rule>
+
+  <rule id="100215" level="14">
+    <if_sid>100200</if_sid>
+    <field name="toolCalls.name">^read_file$</field>
+    <field name="toolCalls.outcome">^ok$</field>
+    <field name="toolCalls.arguments">DECOY|\.env|credential|secret</field>
+    <description>AIRCAP D014: sensitive file read through an agent tool - session $(sessionId)</description>
+    <group>aircap_d014,sensitive_disclosure,</group>
+  </rule>
+
+</group>

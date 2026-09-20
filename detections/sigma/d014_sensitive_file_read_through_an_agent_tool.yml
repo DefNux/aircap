@@ -1,0 +1,36 @@
+title: Sensitive file read through an agent tool
+id: 920c3c62-dd42-5b46-9963-d351c44ca046
+status: experimental
+description: |
+  A credential-bearing file was successfully read by a tool. Distinct from D007, which fires on the attempt: this one fires only when bytes were returned, so it is the trigger for the exfiltration runbook rather than the injection runbook.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0057
+  - detections/sql/D014.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0057
+  - owasp.llm02
+  - nist.csf.de_cm_09
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    toolCalls.name: 'read_file'
+    toolCalls.outcome: 'ok'
+  sensitive:
+    toolCalls.arguments|contains:
+      - 'DECOY'
+      - '.env'
+      - 'credential'
+      - 'secret'
+  condition: selection and sensitive
+fields:
+  - sessionId
+  - toolCalls.arguments
+  - toolCalls.resultBytes
+falsepositives:
+  - A knowledge-base article whose filename contains one of these words. Match on
+    resolved path rather than the raw argument where the platform exposes it.
+level: critical

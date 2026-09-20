@@ -88,9 +88,23 @@ def handle_turn(
     request_id = str(uuid.uuid4())
 
     if len(question) > settings.max_prompt_chars:
-        raise PromptTooLarge(
-            f"prompt is {len(question)} chars, ceiling is {settings.max_prompt_chars}"
+        reason = f"prompt is {len(question)} chars, ceiling is {settings.max_prompt_chars}"
+        # Record the attempt before refusing it, otherwise the control is silent.
+        sink.emit_agent_trace(
+            request_id=request_id,
+            session_id=session_id,
+            principal_arn=settings.principal_arn,
+            user_prompt=question[:2000],
+            final_response="",
+            retrieved=[],
+            tool_calls=[],
+            vuln_flags=settings.vuln_flags,
+            output_filtered=False,
+            latency_ms=int((time.perf_counter() - started) * 1000),
+            rejected=True,
+            rejection_reason=reason,
         )
+        raise PromptTooLarge(reason)
 
     hits = retrieve(question)
     context = _build_context(hits)

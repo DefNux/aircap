@@ -193,6 +193,8 @@ class TelemetrySink:
         vuln_flags: dict[str, bool],
         output_filtered: bool,
         latency_ms: int,
+        rejected: bool = False,
+        rejection_reason: str | None = None,
     ) -> None:
         ts = utc_now()
         self._append(
@@ -212,6 +214,8 @@ class TelemetrySink:
                 vulnFlags=vuln_flags,
                 outputFiltered=output_filtered,
                 latencyMs=latency_ms,
+                rejected=rejected,
+                rejectionReason=rejection_reason,
             ),
         )
         logger.info(

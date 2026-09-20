@@ -1,0 +1,29 @@
+title: Oversized prompt rejected by the size ceiling
+id: be5b3b02-4e80-502e-bf28-944ab67b309b
+status: experimental
+description: |
+  A request was refused before reaching the model. Benign clients do not send prompts multiples of the ceiling; repeated rejections indicate probing or a cost attack. Without the rejection event this attempt leaves no trace at all.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0034
+  - detections/sql/D001.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0034
+  - owasp.llm10
+  - nist.csf.de_ae_02
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    rejected: true
+  condition: selection
+fields:
+  - sessionId
+  - rejectionReason
+  - principalArn
+falsepositives:
+  - A legitimate client pasting a very large document. Correlate with session history;
+    a single rejection is noise, repeated rejections are not.
+level: medium

@@ -1,0 +1,30 @@
+title: Tool invocation denied by a control
+id: d53f8153-6b0e-56a0-baa9-05a7e242d450
+status: experimental
+description: |
+  A control refused a tool call. The refusal means containment worked, but the agent should never have attempted it - so each hit is evidence of an upstream injection rather than a user error.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0053
+  - detections/sql/D006.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0053
+  - owasp.llm06
+  - nist.csf.de_cm_09
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    toolCalls.outcome: 'denied'
+  condition: selection
+fields:
+  - sessionId
+  - toolCalls.name
+  - toolCalls.arguments
+  - toolCalls.error
+falsepositives:
+  - Genuine user error, e.g. a mistyped ticket id. Distinguish by whether the argument
+    pattern resembles probing rather than a typo.
+level: medium

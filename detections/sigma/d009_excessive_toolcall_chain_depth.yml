@@ -1,0 +1,29 @@
+title: Excessive tool-call chain depth
+id: c2e6ac21-f86e-5da2-865e-519c0dfb8382
+status: experimental
+description: |
+  Depth separates an agent doing its job from an agent being driven. The hardened ceiling is 3; anything deeper means the ceiling was raised or absent.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0053
+  - detections/sql/D009.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0053
+  - owasp.llm06
+  - nist.csf.de_ae_02
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  selection:
+    maxToolDepth|gt: 3
+  condition: selection
+fields:
+  - sessionId
+  - maxToolDepth
+  - toolCalls.name
+falsepositives:
+  - Genuinely multi-step workflows. Tune the threshold to the deepest legitimate chain
+    the application can produce, then alert on anything beyond it.
+level: high

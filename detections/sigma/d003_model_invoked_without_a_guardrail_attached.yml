@@ -1,0 +1,31 @@
+title: Model invoked without a guardrail attached
+id: e280ce87-1b8d-5cae-a52e-6e211c9a059f
+status: experimental
+description: |
+  The application always attaches a guardrail, so an invocation without one did not come from the application. In real AWS this is enforceable with an IAM condition key on bedrock:GuardrailIdentifier; detecting it is the fallback.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0044
+  - detections/sql/D003.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0044
+  - owasp.llm03
+  - nist.csf.pr_ps_01
+logsource:
+  product: aircap
+  service: bedrock-invocation
+detection:
+  selection:
+    operation: 'InvokeModel'
+  has_guardrail:
+    guardrailId|exists: true
+  condition: selection and not has_guardrail
+fields:
+  - requestId
+  - identity.arn
+  - modelId
+falsepositives:
+  - Workloads deliberately exempt from guardrails. Maintain an explicit exemption list;
+    an empty exemption list is the correct steady state.
+level: high

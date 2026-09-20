@@ -1,0 +1,34 @@
+title: Agent egress to a private or metadata address
+id: e8af3bbb-c074-523a-a9b2-2beedb4082ea
+status: experimental
+description: |
+  The agent attempted an outbound request to link-local or RFC1918 space. 169.254.169.254 is the cloud instance metadata service and the standard pivot from an application-layer injection to cloud credentials.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0053
+  - detections/sql/D008.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0053
+  - owasp.llm06
+  - nist.csf.de_cm_01
+logsource:
+  product: aircap
+  service: agent-trace
+detection:
+  metadata_service:
+    toolCalls.egressHost:
+      - '169.254.169.254'
+      - 'metadata.google.internal'
+      - '100.100.100.200'
+  private_space:
+    toolCalls.egressHost|re: '^(10\.|127\.|192\.168\.|169\.254\.|172\.(1[6-9]|2[0-9]|3[01])\.)'
+  condition: metadata_service or private_space
+fields:
+  - sessionId
+  - toolCalls.egressHost
+  - toolCalls.outcome
+falsepositives:
+  - Agents legitimately calling internal services. Allowlist those hosts explicitly;
+    the metadata addresses should never be allowlisted.
+level: critical

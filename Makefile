@@ -5,7 +5,8 @@ UVICORN := ./.venv/bin/uvicorn
 DATA    := ./data
 OLLAMA  := $(HOME)/.local/bin/ollama
 
-.PHONY: help venv serve smoke query views clean-data ollama-serve ollama-pull posture test
+.PHONY: help venv serve smoke query views clean-data ollama-serve ollama-pull posture test \
+	attack attack-hardened detect matrix registry verify
 
 help: ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -32,6 +33,27 @@ views: ## list analytics views
 
 test: ## run the lab self-tests
 	$(PY) -m pytest -q tests/ 2>/dev/null || $(PY) scripts/smoke.py --assert-only
+
+attack: ## run every attack under its own posture
+	$(PY) attacks/runner.py --all
+
+attack-hardened: ## control test - run every attack with all controls ON
+	$(PY) attacks/runner.py --all --hardened
+
+detect: ## run every detection against current telemetry
+	$(PY) detections/run.py
+
+matrix: ## attack x detection coverage matrix
+	$(PY) detections/run.py --matrix
+
+registry: ## regenerate attacks/registry.yml from the manifests
+	$(PY) attacks/runner.py --registry
+
+verify: clean-data ## full pipeline: attacks -> detections -> matrix -> control test
+	@$(PY) attacks/runner.py --all > /dev/null
+	@$(PY) detections/run.py --matrix
+	@echo
+	@$(PY) attacks/runner.py --all --hardened | tail -12
 
 ollama-pull: ## pull the 3B quantized model (4GB VRAM budget)
 	$(OLLAMA) pull llama3.2:3b-instruct-q4_K_M

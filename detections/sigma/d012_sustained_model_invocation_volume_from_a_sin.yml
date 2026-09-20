@@ -1,0 +1,40 @@
+title: Sustained model invocation volume from a single session
+id: 65b4aa99-b94c-5646-8ccd-44bcce9c024c
+name: aircap_d012_base
+status: experimental
+description: |
+  The economic attack is volume, not any single request. Every prompt here passed the size ceiling and is individually legitimate, so only aggregation sees it. Threshold is deliberately low for a lab; tune to observed baseline before production.
+references:
+  - https://atlas.mitre.org/techniques/AML.T0034
+  - detections/sql/D012.sql
+author: Nakul Tomar
+date: 2026-09-20
+tags:
+  - attack.atlas.aml.t0034
+  - owasp.llm10
+  - nist.csf.de_ae_02
+logsource:
+  product: aircap
+  service: bedrock-invocation
+detection:
+  selection:
+    operation: 'InvokeModel'
+  condition: selection
+fields:
+  - identity.arn
+---
+title: Sustained model invocation volume from a single principal
+id: c2ac8713-a9fc-5481-a7c6-3b575bcca6c5
+status: experimental
+description: Aggregation over the base rule above. Individually legitimate invocations
+  become an availability and cost event in volume.
+correlation:
+  type: event_count
+  rules:
+    - aircap_d012_base
+  group-by:
+    - identity.arn
+  timespan: 5m
+  condition:
+    gte: 10
+level: medium

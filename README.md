@@ -6,8 +6,14 @@ proves detection fires, auto-collects prompt-chain evidence, contains it, and re
 Plenty of material exists describing AI incidents. This project is about *producing the evidence* —
 the artifact an incident manager owns, not a blog post.
 
-> **Status: Week 1 of 6 complete.** Target app, AWS-faithful telemetry and the analytics layer are
-> working. Attack pack, detection library, IR engine, shadow-AI discovery and cloud portability follow.
+> **Status: Week 2 of 6 complete.** Target app, AWS-faithful telemetry, analytics, a 10-attack pack
+> and a 14-detection library (SQL + Sigma + Wazuh) are working. IR engine, shadow-AI discovery and
+> cloud portability follow.
+
+```
+10/10 attacks reproduce   14/14 detections fire   0 expectation gaps
+5/10 attacks still succeed against the hardened baseline   <- see residual risk below
+```
 
 ## What is real and what is simulated
 
@@ -35,6 +41,25 @@ iac/        Terraform for real AWS
 mappings/   detection ↔ AWS · detection ↔ Azure
 ```
 
+## Results so far
+
+`make verify` runs the whole pipeline: attacks, detections, coverage matrix, control test.
+
+The control test runs every attack with **all controls enabled**. Five are still not
+prevented, and that is reported rather than hidden — four because no preventive control
+exists for them yet, one because its control belongs to IAM rather than to the application:
+
+| Attack | Not prevented because | Coverage today |
+|---|---|---|
+| A02 RAG corpus poisoning | provenance markers stop the model obeying retrieved instructions, not answering from attacker facts | detect-only (D011) |
+| A03 Tool-definition poisoning | tool descriptions render into the trusted system prompt; nothing inspects the catalogue | detect-only (D005) |
+| A04 Confused deputy | one application identity, no per-user authorization between agent and tools | detect-only (D013) |
+| A08 Token-flood DoS | per-prompt size ceiling exists, per-principal rate budget does not | detect-only (D012) |
+| A10 Unauthorized principal | prevention is IAM policy and SCPs, absent from this lab by design | detect-only (D003, D004) |
+
+Full analysis, the five defects the suite surfaced, and the known limitations are in
+[`docs/WEEK2.md`](docs/WEEK2.md).
+
 ## Quick start
 
 ```bash
@@ -42,6 +67,12 @@ make venv          # venv + deps
 make smoke         # generate telemetry across all three streams (no GPU required)
 make views         # list analytics views
 make query SQL="SELECT ts, prompt_chars, completion FROM bedrock_invocations ORDER BY ts"
+
+make attack            # run all 10 attacks under their own postures
+make detect            # run all 14 detections
+make matrix            # attack x detection coverage matrix
+make attack-hardened   # control test: all controls on
+make verify            # all of the above, in order
 ```
 
 For real inference instead of the stub:
