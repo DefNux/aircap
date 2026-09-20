@@ -29,9 +29,12 @@ collect:
   - name: prompt_size_distribution
     description: Are prompts clustered just below the ceiling? That is the tell.
     sql: |
-      SELECT width_bucket(prompt_chars, 0, 8000, 8) AS size_bucket,
-             count(*) AS invocations, min(prompt_chars) AS min_chars, max(prompt_chars) AS max_chars
-      FROM bedrock_invocations GROUP BY 1 ORDER BY 1
+      SELECT (prompt_chars / 1000)::INTEGER * 1000 AS size_bucket_floor,
+             count(*) AS invocations,
+             min(prompt_chars) AS min_chars,
+             max(prompt_chars) AS max_chars
+      FROM bedrock_invocations
+      GROUP BY 1 ORDER BY 1
 contain: []
 recover: |
   There is no containment action here, and that is the finding: the lab has a per-prompt

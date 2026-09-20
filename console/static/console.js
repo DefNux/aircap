@@ -602,22 +602,38 @@ LIMIT 20</textarea>
   },
 };
 
-VIEWS.atlas = {
-  icon: '◇', label: 'ATLAS',
+VIEWS.reference = {
+  icon: '◇', label: 'Reference',
   async render() {
-    try {
-      const a = await api('/atlas');
-      return `<div class="head"><div><h2>MITRE ATLAS coverage</h2>
-        <p>Generated from the official ATLAS STIX 2.1 bundle, not hand-maintained. An id claimed in
-        the repo that does not exist in the bundle fails the generator — which is what makes this
-        evidence rather than decoration.</p></div></div>
-        <div class="panel"><div class="body md">${md(a.markdown)}</div></div>`;
-    } catch (e) {
-      return `<div class="head"><div><h2>MITRE ATLAS coverage</h2></div></div>
-        <div class="note crit">${esc(e.message)}</div>`;
-    }
+    const docs = await api('/docs');
+    return `
+    <div class="head"><div><h2>Reference</h2>
+      <p>The written half of the capability: cloud control mappings, the ATLAS coverage
+      matrix generated from the STIX bundle, measured results, what the metrics do and do
+      not mean, and the tabletop exercise.</p></div></div>
+    <div class="split">
+      <div class="panel"><header><h3>Documents</h3></header><div class="body flush">
+        <div class="list">${docs.map((d) => `<button data-doc="${esc(d.key)}" ${d.available ? '' : 'disabled'}>
+          <div class="t">${esc(d.title)}</div>
+          <div class="s">${d.available ? esc(d.key) : 'not generated'}</div></button>`).join('')}</div>
+      </div></div>
+      <div class="panel"><div class="body md scroll" id="docbody">
+        <div class="empty"><p>Select a document.</p></div>
+      </div></div>
+    </div>`;
   },
-  bind() {},
+  bind() {
+    const load = async (key, btn) => {
+      document.querySelectorAll('[data-doc]').forEach((x) => x.setAttribute('aria-current', 'false'));
+      btn?.setAttribute('aria-current', 'true');
+      const d = await act('Loading document', () => api(`/docs/${key}`));
+      if (d) $('#docbody').innerHTML = md(d.markdown);
+    };
+    const first = document.querySelector('[data-doc]:not([disabled])');
+    document.querySelectorAll('[data-doc]').forEach((b) =>
+      b.addEventListener('click', () => load(b.dataset.doc, b)));
+    if (first) load(first.dataset.doc, first);
+  },
 };
 
 /* ---------- router ---------- */

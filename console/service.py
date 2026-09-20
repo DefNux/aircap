@@ -466,6 +466,33 @@ def atlas_coverage() -> dict[str, Any]:
     return {"markdown": path.read_text(encoding="utf-8")}
 
 
+DOCS = {
+    "aws": ("Detection -> AWS controls", REPO / "mappings/AWS_CONTROLS.md"),
+    "azure": ("Detection -> Azure controls", REPO / "mappings/AZURE_CONTROLS.md"),
+    "atlas": ("MITRE ATLAS coverage", REPO / "mappings/ATLAS_COVERAGE.md"),
+    "results": ("Measured results", REPO / "docs/RESULTS.md"),
+    "metrics": ("What the metrics mean", REPO / "engine/METRICS.md"),
+    "tabletop": ("Tabletop: multi-tenant leak", REPO / "docs/TABLETOP-multi-tenant-leak.md"),
+    "iac": ("AWS infrastructure", REPO / "iac/aws/README.md"),
+}
+
+
+def list_docs() -> list[dict[str, Any]]:
+    return [
+        {"key": k, "title": t, "available": p.exists()}
+        for k, (t, p) in DOCS.items()
+    ]
+
+
+def read_doc(key: str) -> dict[str, Any]:
+    if key not in DOCS:
+        raise ConsoleError(f"unknown document: {key}")
+    title, path = DOCS[key]
+    if not path.exists():
+        raise ConsoleError(f"{title} has not been generated yet ({path.name} missing)")
+    return {"key": key, "title": title, "markdown": path.read_text(encoding="utf-8")}
+
+
 def ad_hoc_query(sql: str, limit: int = 200) -> dict[str, Any]:
     stripped = sql.strip().rstrip(";")
     if not stripped:

@@ -1,0 +1,12 @@
+# Copy to terraform.tfvars and edit. Never commit terraform.tfvars.
+account_id            = "123456789012"
+region                = "us-east-1"
+environment           = "lab"
+name_prefix           = "aircap"
+application_role_name = "aircap-app-role"
+
+# Leave empty to skip the email subscription.
+alert_email = ""
+
+# Off by default: Security Hub bills per finding ingested.
+enable_security_hub = false

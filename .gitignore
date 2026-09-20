@@ -44,7 +44,11 @@ venv/
 *.tfstate
 *.tfstate.*
 *.tfplan
-.terraform.lock.hcl
+terraform.tfvars
+# generated/ holds the plan text and the SCP document as committed evidence,
+# but the binary plan file and the lambda zip are build artifacts.
+iac/aws/generated/plan.tfplan
+iac/aws/generated/responder.zip
 
 # os / editor
 .DS_Store

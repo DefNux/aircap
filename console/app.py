@@ -211,6 +211,16 @@ def post_query(body: QueryRequest) -> dict[str, Any]:
     return ok(service.ad_hoc_query(body.sql, body.limit))
 
 
+@app.get("/api/v1/docs")
+def get_docs() -> dict[str, Any]:
+    return ok(service.list_docs())
+
+
+@app.get("/api/v1/docs/{key}")
+def get_doc(key: str) -> dict[str, Any]:
+    return ok(service.read_doc(key))
+
+
 @app.get("/api/v1/atlas")
 def get_atlas() -> dict[str, Any]:
     return ok(service.atlas_coverage())
