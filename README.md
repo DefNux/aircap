@@ -154,4 +154,12 @@ to match.
 
 ## Licence
 
-MIT (pending).
+[MIT](LICENSE).
+
+## Attribution
+
+Built by Nakul Tomar. Portions of the implementation were written in collaboration with
+Claude (Anthropic), noted per-commit with `Co-Authored-By` trailers; the design decisions,
+findings and analysis recorded in `docs/` are the author's own. The residual-risk and
+metrics caveats are deliberate: this repo is intended to be defensible under questioning,
+not impressive at a glance.
