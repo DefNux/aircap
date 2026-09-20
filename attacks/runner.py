@@ -22,7 +22,12 @@ if str(REPO) not in sys.path:
 
 import yaml  # noqa: E402
 
-from attacks.base import AttackContext, AttackResult, Manifest  # noqa: E402
+from attacks.base import (  # noqa: E402
+    AttackContext,
+    AttackResult,
+    Manifest,
+    corpus_pollution,
+)
 from lab.app.config import base  # noqa: E402
 from lab.telemetry.emitter import TelemetrySink  # noqa: E402
 
@@ -125,6 +130,15 @@ def main() -> int:
     unknown = [i for i in selected if i not in attacks]
     if unknown:
         logger.error("unknown attack id(s): %s; known: %s", ", ".join(unknown), ", ".join(attacks))
+        return 2
+
+    polluted = corpus_pollution()
+    if polluted:
+        logger.error(
+            "corpus contains %d leftover document(s): %s. These change retrieval ranking "
+            "and will skew every detection count. Run 'make clean-data' first.",
+            len(polluted), ", ".join(polluted),
+        )
         return 2
 
     cfg = base()

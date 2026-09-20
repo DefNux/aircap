@@ -11,7 +11,9 @@ hr() { printf '%s\n' "----------------------------------------------------------
 
 hr; echo "STEP 0  reset lab state"; hr
 $PY engine/ir.py --lift >/dev/null 2>&1 || true
-rm -rf data incidents; mkdir -p incidents
+rm -rf data; rm -rf incidents/INC-*; mkdir -p incidents
+find lab/app/corpus -name '*.md' \
+  ! -name onboarding.md ! -name expenses.md ! -name support-sla.md -delete
 
 hr; echo "STEP 1  run attacks (artifacts retained for IR to act on)"; hr
 $PY attacks/runner.py --id $ATTACKS --keep-artifacts 2>/dev/null \

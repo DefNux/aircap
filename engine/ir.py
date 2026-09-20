@@ -477,12 +477,24 @@ def main() -> int:
 
     if args.lift:
         lifted = store.lift_all(reason="operator requested lift via engine/ir.py --lift")
-        restored = 0
+        restored, retained = [], []
         if QUARANTINE_DIR.is_dir():
-            for path in QUARANTINE_DIR.glob("*.md"):
-                path.replace(CORPUS_DIR / path.name)
-                restored += 1
-        print(f"lifted {lifted} containment action(s); restored {restored} quarantined document(s)")
+            for path in sorted(QUARANTINE_DIR.glob("*.md")):
+                # Only baseline documents go back. Anything else was attacker-planted:
+                # restoring it would silently repoison the corpus for every later run,
+                # and a responder needs it kept as evidence anyway.
+                if path.name in PROTECTED_DOCUMENTS:
+                    path.replace(CORPUS_DIR / path.name)
+                    restored.append(path.name)
+                else:
+                    retained.append(path.name)
+        print(f"lifted {lifted} containment action(s)")
+        print(f"restored {len(restored)} baseline document(s): {', '.join(restored) or 'none'}")
+        if retained:
+            print(
+                f"retained {len(retained)} non-baseline document(s) in data/quarantine/ as "
+                f"evidence (not restored): {', '.join(retained)}"
+            )
         return 0
 
     try:

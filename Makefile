@@ -84,4 +84,6 @@ clean-data: ## delete generated telemetry and incidents; lift containment first
 	-$(PY) engine/ir.py --lift >/dev/null 2>&1
 	rm -rf $(DATA)/bedrock-logs $(DATA)/cloudtrail $(DATA)/agent-traces $(DATA)/quarantine
 	rm -rf incidents/INC-*
-	@echo "telemetry, incidents and containment cleared"
+	@find lab/app/corpus -name '*.md' \
+	  ! -name onboarding.md ! -name expenses.md ! -name support-sla.md -delete
+	@echo "telemetry, incidents, containment and corpus pollution cleared"

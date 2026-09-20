@@ -24,6 +24,18 @@ from lab.telemetry.emitter import TelemetrySink  # noqa: E402
 
 logger = logging.getLogger("aircap.attack")
 
+# The documents that ship with the lab. Anything else in the corpus at the start of a
+# run is a leftover artifact, and leftovers change retrieval ranking - which silently
+# skews every detection count downstream.
+BASELINE_CORPUS = frozenset({"onboarding.md", "expenses.md", "support-sla.md"})
+
+
+def corpus_pollution() -> list[str]:
+    """Non-baseline documents currently sitting in the retrieval corpus."""
+    return sorted(
+        p.name for p in rag.CORPUS_DIR.glob("*.md") if p.name not in BASELINE_CORPUS
+    )
+
 
 @dataclass(frozen=True)
 class Manifest:
