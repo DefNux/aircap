@@ -40,7 +40,9 @@ against the legitimate `support-sla#0` at 0.4, so it wins the context window.
 
 ## Carried into Week 2
 
-- Ollama install is pending a slow 1.4 GB GitHub CDN download (`v0.34.2`,
-  `ollama-linux-amd64.tar.zst`, sha256 `e155b835…`). Unblocked: the stub covers all functionality.
+- Ollama v0.34.2 installed rootless to `~/.local/bin/ollama` (1.4 GB `.tar.zst`, sha256
+  `e155b835…` verified). Not yet on `PATH`; the Makefile calls it by absolute path. The model
+  itself is still to pull: `make ollama-pull` (~2 GB for `llama3.2:3b-instruct-q4_K_M`).
+  Note the release asset is `.tar.zst`, not the `.tgz` most install guides still reference.
 - The smoke test reloads modules to change posture because `Settings` is read at import time. For the
   attack harness, make posture a per-request override instead so attacks can run in one process.
