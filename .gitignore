@@ -1,3 +1,10 @@
+# downloaded archives and caches — a mid-download tarball once got committed here
+.cache/
+*.tar.gz
+*.tar.zst
+*.tgz
+*.zip
+
 # generated telemetry & evidence — never commit real captures
 data/
 incidents/INC-*
