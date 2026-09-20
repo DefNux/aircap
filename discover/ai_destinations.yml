@@ -1,0 +1,147 @@
+# Curated inventory of generative-AI and agent-infrastructure destinations.
+#
+# `sanctioned` is the only field that should ever be edited per-organisation: it decides
+# whether observed use is governance data or an incident. Everything here is a hostname
+# suffix match, deliberately not a regex, because a maintainable list beats a clever one.
+#
+# Categories drive risk scoring in discover/scan.py. `data_egress_risk` is the judgement
+# that matters: a coding assistant that uploads repository context is a materially
+# different exposure from a chat UI someone pastes one question into.
+
+providers:
+  - name: OpenAI
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.openai.com, chatgpt.com, chat.openai.com, openai.com]
+  - name: Anthropic
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.anthropic.com, claude.ai, console.anthropic.com]
+  - name: Google Gemini
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [generativelanguage.googleapis.com, gemini.google.com, aistudio.google.com]
+  - name: Microsoft Copilot
+    category: assistant
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [copilot.microsoft.com, m365.cloud.microsoft, substrate.office.com]
+  - name: GitHub Copilot
+    category: coding_assistant
+    sanctioned: false
+    data_egress_risk: critical
+    hosts: [copilot-proxy.githubusercontent.com, api.githubcopilot.com, copilot-telemetry.githubusercontent.com]
+  - name: AWS Bedrock
+    category: model_api
+    sanctioned: true
+    data_egress_risk: medium
+    hosts: [bedrock-runtime.us-east-1.amazonaws.com, bedrock.us-east-1.amazonaws.com]
+  - name: Azure OpenAI
+    category: model_api
+    sanctioned: true
+    data_egress_risk: medium
+    hosts: [openai.azure.com, cognitiveservices.azure.com]
+  - name: Mistral
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.mistral.ai, chat.mistral.ai]
+  - name: Perplexity
+    category: assistant
+    sanctioned: false
+    data_egress_risk: medium
+    hosts: [api.perplexity.ai, perplexity.ai]
+  - name: Hugging Face
+    category: model_hosting
+    sanctioned: false
+    data_egress_risk: medium
+    hosts: [huggingface.co, api-inference.huggingface.co, cdn-lfs.huggingface.co]
+  - name: Cursor
+    category: coding_assistant
+    sanctioned: false
+    data_egress_risk: critical
+    hosts: [api2.cursor.sh, api.cursor.sh, cursor.com]
+  - name: Replit
+    category: coding_assistant
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [replit.com, api.replit.com]
+  - name: Groq
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.groq.com]
+  - name: Together AI
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.together.xyz, api.together.ai]
+  - name: DeepSeek
+    category: model_api
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [api.deepseek.com, chat.deepseek.com]
+  - name: Ollama registry
+    category: model_hosting
+    sanctioned: false
+    data_egress_risk: low
+    hosts: [registry.ollama.ai, ollama.com]
+  - name: MCP registries
+    category: agent_infrastructure
+    sanctioned: false
+    data_egress_risk: high
+    hosts: [registry.modelcontextprotocol.io, smithery.ai, mcp.so, glama.ai]
+
+# Locally-running inference runtimes. Local inference keeps prompts on the device, so the
+# risk profile inverts: egress is low, but the runtime is unmanaged, unpatched and
+# invisible to a DLP stack that only watches the network.
+local_runtimes:
+  - name: Ollama
+    processes: [ollama]
+    default_ports: [11434]
+    data_egress_risk: low
+    note: HTTP API on 11434 with no authentication by default
+  - name: llama.cpp
+    processes: [llama-server, llama-cli, main, server]
+    default_ports: [8080]
+    data_egress_risk: low
+  - name: LM Studio
+    processes: [lmstudio, "LM Studio"]
+    default_ports: [1234]
+    data_egress_risk: low
+  - name: vLLM
+    processes: [vllm]
+    default_ports: [8000]
+    data_egress_risk: low
+  - name: GPT4All
+    processes: [gpt4all, chat]
+    default_ports: []
+    data_egress_risk: low
+  - name: Jan
+    processes: [jan, Jan]
+    default_ports: [1337]
+    data_egress_risk: low
+  - name: LocalAI
+    processes: [local-ai, localai]
+    default_ports: [8080]
+    data_egress_risk: low
+  - name: KoboldCpp
+    processes: [koboldcpp]
+    default_ports: [5001]
+    data_egress_risk: low
+
+# Browser extension identifiers. Extension ids are stable and are the only reliable
+# signal: display names are attacker- and user-controllable.
+browser_extensions:
+  chromium_ids:
+    cfhdojbkjhnklbpkdaibdccddilifddb: uBlock Origin (benign control sample)
+    nkbihfbeogaeaoehlefnkodbefgpgknn: MetaMask (benign control sample)
+    gejiddespcgzlpaeadmiahhdikhmdcbi: Monica AI Assistant
+    bhlfhihanmpdkkjfmnhpfbgmmnbnhjhd: Sider AI
+    jgjaeacdkonaoafenlfkkkmbaopkbilf: Compose AI
+    ekbbplmjjgoobkdmeeaicneljinnpmmi: HARPA AI
+    cbgecfllfhmmnknmamkejadjmnmpfjmp: ChatGPT for Google
+  firefox_patterns: [chatgpt, openai, claude, gemini, copilot, perplexity, "ai-assistant", writesonic, jasper]

@@ -6,12 +6,14 @@ proves detection fires, auto-collects prompt-chain evidence, contains it, and re
 Plenty of material exists describing AI incidents. This project is about *producing the evidence* —
 the artifact an incident manager owns, not a blog post.
 
-> **Status: Week 3 of 6 complete.** Target app, AWS-faithful telemetry, analytics, a 10-attack
-> pack, a 14-detection library (SQL + Sigma + Wazuh) and an IR engine with verified containment
-> are working. Shadow-AI discovery and cloud portability follow.
+> **Status: Week 4 of 6 complete.** Target app, AWS-faithful telemetry, analytics, a 10-attack
+> pack, a 14-detection library (SQL + Sigma + Wazuh), an IR engine with verified containment,
+> shadow-AI discovery and an operator console are working. Cloud portability (Terraform, AWS/Azure
+> control mappings) is what remains.
 
 ```
 10/10 attacks reproduce      14/14 detections fire       0 expectation gaps
+operator console: 21 endpoints, 8 views, drives the whole capability from a browser
 9 runbooks cover 14/14 detections     8 ATLAS techniques validated against the STIX bundle
 make ir-demo:  5 attacks succeed -> contain -> THE SAME 5 ATTACKS NOW FAIL
 5/10 attacks still succeed against the hardened baseline   <- see residual risk below
@@ -83,6 +85,35 @@ make ir-status         # show active containment
 make ir-lift           # reverse all containment
 make atlas             # regenerate ATLAS coverage from the STIX bundle
 ```
+
+## Operator console
+
+```bash
+make console     # -> http://127.0.0.1:8099
+```
+
+Eight views over the whole capability: run attacks (individually, all, or as the hardened
+control test), run detections and inspect the matching evidence rows, build the coverage
+matrix, execute runbooks in triage or respond mode, read generated incident timelines and
+postmortems, scan the endpoint for shadow AI, and query the telemetry with ad-hoc SQL.
+
+**Loopback only, and deliberately so** — it can run attacks, apply containment and wipe the
+lab, so it is an administrative interface over an intentionally vulnerable application. It has
+no authentication; do not expose it. The SQL console accepts only `SELECT`/`WITH`.
+
+## Shadow-AI discovery
+
+```bash
+make discover            # four lenses, no root required
+make discover-capture    # adds live TLS/QUIC SNI capture (needs sudo)
+make discover-cloud      # classify AI egress in synthetic VPC/Route53/NSG samples
+```
+
+Detects local inference runtimes (with GPU attribution), unauthenticated model APIs on a
+port, AI browser extensions by stable extension id, and egress to 43 known provider
+hostnames. Risk scoring inverts for local runtimes: prompts stay on the device, but the
+runtime is unmanaged and invisible to network-only DLP. Ships an osquery pack for fleet
+deployment and Wazuh rules for alerting.
 
 ## The proof loop
 

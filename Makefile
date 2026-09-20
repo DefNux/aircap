@@ -1,13 +1,13 @@
 # AIRCAP - AI Incident Response Capability
 .DEFAULT_GOAL := help
 PY      := ./.venv/bin/python
-UVICORN := ./.venv/bin/uvicorn
+UVICORN := ./.venv/bin/python -m uvicorn
 DATA    := ./data
 OLLAMA  := $(HOME)/.local/bin/ollama
 
 .PHONY: help venv serve smoke query views clean-data ollama-serve ollama-pull posture test \
 	attack attack-hardened detect matrix registry verify \
-	ir-triage ir-respond ir-status ir-lift ir-demo atlas
+	ir-triage ir-respond ir-status ir-lift ir-demo atlas console discover discover-cloud
 
 help: ## show this help
 	@grep -hE '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | \
@@ -55,6 +55,19 @@ verify: clean-data ## full pipeline: attacks -> detections -> matrix -> control 
 	@$(PY) detections/run.py --matrix
 	@echo
 	@$(PY) attacks/runner.py --all --hardened | tail -12
+
+console: ## start the operator console on http://127.0.0.1:8099
+	@echo "AIRCAP console -> http://127.0.0.1:8099   (loopback only; ctrl-c to stop)"
+	$(UVICORN) console.app:app --host 127.0.0.1 --port 8099 --log-level warning
+
+discover: ## scan this endpoint for shadow AI
+	$(PY) discover/scan.py
+
+discover-capture: ## scan including live SNI capture (needs sudo)
+	sudo $(PY) discover/scan.py --capture
+
+discover-cloud: ## classify AI egress in the synthetic cloud log samples
+	$(PY) discover/cloud/parse_logs.py --all
 
 ir-triage: ## run runbooks for fired detections, collect evidence, no containment
 	$(PY) engine/ir.py --triage

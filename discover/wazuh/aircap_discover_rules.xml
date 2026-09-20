@@ -1,0 +1,64 @@
+<!--
+  AIRCAP shadow-AI discovery rules. Ids 100300-100399.
+  Consumes discover/scan.py output via the localfile block in ossec-localfile.conf.
+
+  Levels are deliberately low compared with the detection rules in
+  detections/wazuh/: shadow AI is a governance finding that needs a conversation,
+  not a pager. The exception is an unauthenticated model API exposed to the
+  network, which is a genuine attack surface.
+-->
+<group name="aircap,shadow_ai,">
+
+  <rule id="100300" level="0">
+    <decoded_as>json</decoded_as>
+    <field name="lens">\.+</field>
+    <description>AIRCAP shadow-AI discovery finding</description>
+  </rule>
+
+  <rule id="100301" level="4">
+    <if_sid>100300</if_sid>
+    <field name="lens">^process$</field>
+    <description>AIRCAP: local LLM runtime running - $(asset) ($(detail))</description>
+    <group>shadow_ai_runtime,</group>
+  </rule>
+
+  <rule id="100302" level="10">
+    <if_sid>100300</if_sid>
+    <field name="lens">^listener$</field>
+    <field name="evidence.network_exposed">^true$</field>
+    <description>AIRCAP: unauthenticated model API reachable from the network - $(asset) $(detail)</description>
+    <group>shadow_ai_exposure,attack_surface,</group>
+  </rule>
+
+  <rule id="100303" level="5">
+    <if_sid>100300</if_sid>
+    <field name="lens">^listener$</field>
+    <description>AIRCAP: local model API listening - $(asset) $(detail)</description>
+    <group>shadow_ai_runtime,</group>
+  </rule>
+
+  <rule id="100304" level="6">
+    <if_sid>100300</if_sid>
+    <field name="lens">^browser$</field>
+    <field name="sanctioned">^false$</field>
+    <description>AIRCAP: unsanctioned AI browser extension - $(asset) $(detail)</description>
+    <group>shadow_ai_browser,</group>
+  </rule>
+
+  <rule id="100305" level="7">
+    <if_sid>100300</if_sid>
+    <field name="lens">^egress|^capture</field>
+    <field name="sanctioned">^false$</field>
+    <field name="data_egress_risk">^critical$|^high$</field>
+    <description>AIRCAP: egress to unsanctioned AI provider $(asset) - $(detail)</description>
+    <group>shadow_ai_egress,data_exfiltration_risk,</group>
+  </rule>
+
+  <rule id="100306" level="3">
+    <if_sid>100300</if_sid>
+    <field name="sanctioned">^true$</field>
+    <description>AIRCAP: sanctioned AI provider in use - $(asset) (inventory only)</description>
+    <group>shadow_ai_inventory,</group>
+  </rule>
+
+</group>
